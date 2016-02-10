@@ -59,8 +59,7 @@ public struct ZLib {
         return String.fromCString(zlibVersion())
     }
     var buffer = Array<UInt8>(count:Int(BUFSIZ), repeatedValue:  0)
-    var sizeOfCompressBuffer:CUnsignedLong = 0
-    var sizeOfOriginalBuffer:Int = 0
+    private var _sizeOfOriginalBuffer:Int = 0
 
     /// adler32( adler: uLong, buf: UnsafePointer<Bytef>, len: uInt)
     public static func toAdler32(adler:CUnsignedLong , buffer: Array<UInt8> ) -> CUnsignedLong {
@@ -74,8 +73,19 @@ public struct ZLib {
     
     /// compress(dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong )
     public mutating func toCompress(source: Array<UInt8>) throws -> Array<UInt8> {
-        sizeOfOriginalBuffer = source.count
-        sizeOfCompressBuffer = compressBound(CUnsignedLong(source.count))
+        _sizeOfOriginalBuffer = source.count
+        return try self.dynamicType.toCompress(source)
+    }
+    
+    /// compress2( dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong, level: Int32 )
+    public mutating func toCompress(source: Array<UInt8>, level: CompressionLevel) throws -> Array<UInt8> {
+        _sizeOfOriginalBuffer = source.count
+        return try self.dynamicType.toCompress(source, level: level)
+    }
+    
+    /// compress(dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong )
+    public static func toCompress(source: Array<UInt8>) throws -> Array<UInt8> {
+        let sizeOfCompressBuffer = compressBound(CUnsignedLong(source.count))
         var dest = Array<Bytef>(count:Int(sizeOfCompressBuffer), repeatedValue: 0)
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = compress(&dest, &destlen, source, CUnsignedLong(source.count))
@@ -93,15 +103,15 @@ public struct ZLib {
     }
     
     /// compress2( dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong, level: Int32 )
-    public mutating func toCompress(source: Array<UInt8>, level: CompressionLevel) throws -> Array<UInt8> {
-        sizeOfOriginalBuffer = source.count
-        sizeOfCompressBuffer = compressBound(CUnsignedLong(source.count))
+    public static func toCompress(source: Array<UInt8>, level: CompressionLevel) throws -> Array<UInt8> {
+        let sizeOfCompressBuffer = compressBound(CUnsignedLong(source.count))
         var dest = Array<Bytef>(count:Int(sizeOfCompressBuffer), repeatedValue: 0)
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = compress2(&dest, &destlen, source, CUnsignedLong(source.count), level.rawValue)
         switch(ret){
         case Z_OK:
-            return dest
+            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
+            return retValue
         case Z_MEM_ERROR:
             throw ZError.MemoryError
         case Z_BUF_ERROR:
@@ -113,19 +123,7 @@ public struct ZLib {
     
     /// uncompress(dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong)
     public func toUncompress( source: Array<UInt8>) throws -> Array<UInt8> {
-        var dest = Array<Bytef>(count:Int(sizeOfOriginalBuffer), repeatedValue: 0)
-        var destlen:CUnsignedLong = CUnsignedLong(dest.count)
-        let ret = uncompress(&dest, &destlen, source, CUnsignedLong(source.count))
-        switch(ret){
-        case Z_OK:
-            return dest
-        case Z_MEM_ERROR:
-            throw ZError.MemoryError
-        case Z_BUF_ERROR:
-            throw ZError.BufferError
-        default:
-            throw ZError.UnknownError
-        }
+        return try self.dynamicType.toUncompress(source, sizeOfOriginalBuffer: _sizeOfOriginalBuffer)
     }
     
     public static func toUncompress( source: Array<UInt8>, sizeOfOriginalBuffer:Int ) throws -> Array<UInt8> {
@@ -143,10 +141,6 @@ public struct ZLib {
             throw ZError.UnknownError
         }
     }
-    
-    /// dompressBound( sourceLen: uLong )
-    func doCompressBound(){}
-
     
     ///
     public class Inflate {

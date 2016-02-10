@@ -31,21 +31,57 @@ class SwiftedzlibTests: XCTestCase {
     func testCompressionDecompression() {
         let source = ("abcdfghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdfghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     + "abcdfghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdfghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ").utf8.map({UInt8($0)})
-        print(source)
-        var zlib = ZLib()
-        let c = try? zlib.toCompress(source)
-        XCTAssertNotNil(c)
-        print(c)
-        print("original size=\(source.count) compress size=\(c?.count)")
-        let d = try? zlib.toUncompress(c!)
-        XCTAssertNotNil(d)
-        print(d!)
-        XCTAssertEqual(source, d!, "値が復元されない")
-        // オリジナルのサイズが別途知り得る場合
-        let unComp = try? ZLib.toUncompress(c!, sizeOfOriginalBuffer: source.count)
-        print(unComp!)
-        XCTAssertEqual(source, unComp!, "値が復元されない")
+//        print(source)
         
+        // オリジナルサイズを保持する場合
+        var zlibDefaultCompression = ZLib()
+        let c = try? zlibDefaultCompression.toCompress(source)
+        XCTAssertNotNil(c)
+//        print(c)
+        print("original size=\(source.count) compress size=\(c?.count) = \((Double(c!.count)/Double(source.count)) * 100)%")
+        XCTAssertGreaterThan(source.count, c!.count)
+        let d = try? zlibDefaultCompression.toUncompress(c!)
+        XCTAssertNotNil(d)
+//        print(d!)
+        XCTAssertEqual(source, d!, "値が復元されない")
+        
+        var zlibBS = ZLib()
+        let cBS = try? zlibBS.toCompress(source, level: .BestSpeed)
+        XCTAssertNotNil(cBS)
+        print("BestSpeed original size=\(source.count) compress size=\(cBS?.count) = \((Double(cBS!.count)/Double(source.count)) * 100)%")
+        XCTAssertGreaterThan(source.count, cBS!.count)
+        let dBS = try? zlibBS.toUncompress(cBS!)
+        XCTAssertNotNil(dBS)
+        XCTAssertEqual(source, dBS!, "値が復元されない")
+        
+        var zlibBC = ZLib()
+        let cBC = try? zlibBC.toCompress(source, level: .BestCompression)
+        XCTAssertNotNil(cBC)
+        print("BestCompression original size=\(source.count) compress size=\(cBC?.count) = \((Double(cBC!.count)/Double(source.count)) * 100)%")
+        XCTAssertGreaterThan(source.count, cBC!.count)
+        let dBC = try? zlibBC.toUncompress(cBC!)
+        XCTAssertNotNil(dBC)
+        XCTAssertEqual(source, dBC!, "値が復元されない")
+        
+        
+        // オリジナルのサイズを別途知り得る場合
+        let cDefault = try? ZLib.toCompress(source)
+        XCTAssertNotNil(cDefault)
+        let uncDefault = try? ZLib.toUncompress(cDefault!, sizeOfOriginalBuffer: source.count)
+        XCTAssertEqual(source, uncDefault!, "値が復元されない")
+        print("original size=\(source.count) compress size=\(cDefault?.count) = \((Double(cDefault!.count)/Double(source.count)) * 100)%")
+        
+        let cBestSpeed = try? ZLib.toCompress(source, level: .BestSpeed)
+        XCTAssertNotNil(cBestSpeed)
+        let uncBS = try? ZLib.toUncompress(cBestSpeed!, sizeOfOriginalBuffer: source.count)
+        XCTAssertEqual(source, uncBS!, "値が復元されない")
+        print("BestSpeed original size=\(source.count) compress size=\(cBestSpeed?.count) = \((Double(cBestSpeed!.count)/Double(source.count)) * 100)%")
+        
+        let cBestCompression = try? ZLib.toCompress(source, level: .BestCompression)
+        XCTAssertNotNil(cBestCompression)
+        print("BestCompression original size=\(source.count) compress size=\(cBestCompression?.count) = \((Double(cBestCompression!.count)/Double(source.count)) * 100)%")
+        let uncBC = try? ZLib.toUncompress(cBestCompression!, sizeOfOriginalBuffer: source.count)
+        XCTAssertEqual(source, uncBC!, "値が復元されない")
     }
     
     func testPerformanceExample() {
