@@ -61,12 +61,12 @@ public struct ZLib {
     }
 
     /// adler32( adler: uLong, buf: UnsafePointer<Bytef>, len: uInt)
-    public static func toAdler32(adler:CUnsignedLong , buffer: Array<UInt8> ) -> CUnsignedLong {
+    public static func toAdler32(adler:UInt , buffer: Array<UInt8> ) -> CUnsignedLong {
         return adler32(adler, buffer, CUnsignedInt(buffer.count))
     }
 
     /// crc32( crc: uLong, buf: UnsafePointer<bytef>, len: uInt )
-    public static func toCrc32(crc:CUnsignedLong, buffer:Array<UInt8> ) -> CUnsignedLong {
+    public static func toCrc32(crc:UInt, buffer:Array<UInt8> ) -> CUnsignedLong {
         return crc32(crc, buffer, CUnsignedInt(buffer.count) )
     }
     
@@ -138,8 +138,8 @@ public struct ZLib {
     ///
     public class Inflate {
         var stream: z_stream
-        var inBuffer = Array<UInt8>(count:Int(BUFSIZ),repeatedValue:0)
-        var outBuffer = Array<UInt8>(count:Int(BUFSIZ), repeatedValue: 0)
+        var inBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ),repeatedValue:0)
+        var outBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ), repeatedValue: 0)
         
         /// initilize
         ///  inflateInit_( strm: z_streamp, version: UnsafePointer<Int8>, stream_size: Int32 )
@@ -152,7 +152,7 @@ public struct ZLib {
         /// zlib.h
         ///
         ///     inflateInit2_( strm: z_streamp, windowBits: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(windowBits:CInt){
+        init(windowBits:Int32){
             stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
             let ret = inflateInit2_(&stream, windowBits, ZLIB_VERSION, CInt(sizeof(z_stream)))
             if ret != Z_OK {
@@ -190,12 +190,12 @@ public struct ZLib {
         }
 
         /// inflateMark( strm: z_streamp )
-        func mark() -> CLong{
+        func mark() -> Int{
             return inflateMark(&stream)
         }
 
         /// inflatePrime( strm: z_streamp, bits: Int32, value: Int32 )
-        func prime(bits:CInt, value:PossibleValues){
+        func prime(bits:Int32, value:PossibleValues){
             let ret = inflatePrime(&stream, bits, value.rawValue)
         }
 
@@ -205,7 +205,7 @@ public struct ZLib {
         }
 
         /// inflateReset2( strm: z_streamp, windowBits: Int32 )
-        func reset(windowBits:CInt){
+        func reset(windowBits:Int32){
             let ret = inflateReset2(&stream, windowBits)
         }
 
@@ -232,8 +232,8 @@ public struct ZLib {
     
     public class Deflate {
         var stream : z_stream
-        var inBuffer = Array<UInt8>(count:Int(BUFSIZ),repeatedValue:0)
-        var outBuffer = Array<UInt8>(count:Int(BUFSIZ), repeatedValue: 0)
+        var inBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ),repeatedValue:0)
+        var outBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ), repeatedValue: 0)
         
         /// deflateInit_( strm: z_streamp, level: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
         init(level:CompressionLevel = .Default){
@@ -252,12 +252,12 @@ public struct ZLib {
         }
 
         /// deflate( strm: z_streamp, flush: Int32 )
-        private func doDeflate( flush: FlushVariation = .NoFlush) -> CInt {
+        private func doDeflate( flush: FlushVariation = .NoFlush) -> Int32 {
             return deflate(&stream, flush.rawValue)
         }
         
         /// deflateBound( strm: z_streamp, sourceLen: uLong )
-        func Bound() -> CUnsignedLong{
+        func Bound() -> UInt{
 //            return deflateBound(&stream, <#T##sourceLen: uLong##uLong#>)
             return 0
         }
@@ -276,7 +276,7 @@ public struct ZLib {
         }
 
         /// deflatePrime( strm: z_streamp, bits: Int32, value: Int32 )
-        func prime(bits:CInt, value:PossibleValues){
+        func prime(bits:Int32, value:PossibleValues){
             deflatePrime(&stream, bits, value.rawValue)
         }
 
