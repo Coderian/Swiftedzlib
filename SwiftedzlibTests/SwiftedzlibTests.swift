@@ -82,6 +82,25 @@ class SwiftedzlibTests: XCTestCase {
         print("BestCompression original size=\(source.count) compress size=\(cBestCompression?.count) = \((Double(cBestCompression!.count)/Double(source.count)) * 100)%")
         let uncBC = try? ZLib.toUncompress(cBestCompression!, sizeOfOriginalBuffer: source.count)
         XCTAssertEqual(source, uncBC!, "値が復元されない")
+        
+        // buffer error
+        let uncBufferErrored:Array<UInt8>?
+        do {
+            uncBufferErrored = try ZLib.toUncompress(cBestCompression!, sizeOfOriginalBuffer: source.count/2)
+        }
+        catch ZLib.ZError.MemoryError {
+            print("catch MemoryError")
+            uncBufferErrored = nil
+        }
+        catch ZLib.ZError.BufferError{
+            print("catch BufferError")
+            uncBufferErrored = nil
+        }
+        catch{
+            print("catch exception")
+            uncBufferErrored = nil
+        }
+        XCTAssertNil(uncBufferErrored)
     }
     
     func testPerformanceExample() {

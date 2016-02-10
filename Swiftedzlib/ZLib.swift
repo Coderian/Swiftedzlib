@@ -21,7 +21,6 @@ public struct ZLib {
         case MemoryError
         case BufferError
         case VersionError
-        case UnknownError
     }
     
     public enum CompressionLevel: CInt {
@@ -55,11 +54,11 @@ public struct ZLib {
         case Trees = 6
     }
     
+    private var _sizeOfOriginalBuffer:Int = 0
+    
     public static var version:String? {
         return String.fromCString(zlibVersion())
     }
-    var buffer = Array<UInt8>(count:Int(BUFSIZ), repeatedValue:  0)
-    private var _sizeOfOriginalBuffer:Int = 0
 
     /// adler32( adler: uLong, buf: UnsafePointer<Bytef>, len: uInt)
     public static func toAdler32(adler:CUnsignedLong , buffer: Array<UInt8> ) -> CUnsignedLong {
@@ -90,15 +89,13 @@ public struct ZLib {
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = compress(&dest, &destlen, source, CUnsignedLong(source.count))
         switch(ret){
-        case Z_OK:
-            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
-            return retValue
         case Z_MEM_ERROR:
             throw ZError.MemoryError
         case Z_BUF_ERROR:
             throw ZError.BufferError
         default:
-            throw ZError.UnknownError
+            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
+            return retValue
         }
     }
     
@@ -109,15 +106,13 @@ public struct ZLib {
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = compress2(&dest, &destlen, source, CUnsignedLong(source.count), level.rawValue)
         switch(ret){
-        case Z_OK:
-            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
-            return retValue
         case Z_MEM_ERROR:
             throw ZError.MemoryError
         case Z_BUF_ERROR:
             throw ZError.BufferError
         default:
-            throw ZError.UnknownError
+            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
+            return retValue
         }
     }
     
@@ -131,14 +126,12 @@ public struct ZLib {
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = uncompress(&dest, &destlen, source, CUnsignedLong(source.count))
         switch(ret){
-        case Z_OK:
-            return dest
         case Z_MEM_ERROR:
             throw ZError.MemoryError
         case Z_BUF_ERROR:
             throw ZError.BufferError
         default:
-            throw ZError.UnknownError
+            return dest
         }
     }
     
@@ -148,6 +141,12 @@ public struct ZLib {
         var inBuffer = Array<UInt8>(count:Int(BUFSIZ),repeatedValue:0)
         var outBuffer = Array<UInt8>(count:Int(BUFSIZ), repeatedValue: 0)
         
+        /// initilize
+        ///  inflateInit_( strm: z_streamp, version: UnsafePointer<Int8>, stream_size: Int32 )
+        init(){
+            stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
+            let ret = inflateInit_(&stream, ZLIB_VERSION, CInt(sizeof(z_stream)))
+        }
         /// initilize
         ///
         /// zlib.h
@@ -160,16 +159,10 @@ public struct ZLib {
                 // TODO:
             }
         }
-        /// initilize
-        ///  inflateInit_( strm: z_streamp, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(){
-            stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
-            inflateInit_(&stream, ZLIB_VERSION, CInt(sizeof(z_stream)))
-        }
         ///
         /// inflateEnd( strm: z_streamp )
         deinit{
-            inflateEnd(&stream)
+            let ret = inflateEnd(&stream)
         }
         
         func doInflate(sourceFileName:String, destFileName:String){
@@ -178,21 +171,21 @@ public struct ZLib {
 
         /// inflate( strm: z_streamp, flush: Int32 )
         private func doInflate(flush:FlushVariation = .NoFlush){
-            inflate(&stream, flush.rawValue)
+            let ret = inflate(&stream, flush.rawValue)
         }
 
         /// inflateCopy( dest: z_streamp, source: z_streamp )
         func duplicate() -> Inflate {
             let dest:Inflate = Inflate()
-            inflateEnd(&dest.stream)
-            inflateCopy(&dest.stream, &self.stream)
+            let retEnd = inflateEnd(&dest.stream)
+            let retCopy = inflateCopy(&dest.stream, &stream)
             return dest
         }
 
         /// inflateGetHeader( strm: z_streamp, head: gz_headerp )
         func getHeader() -> gz_header {
             var header = gz_header()
-            inflateGetHeader(&stream, &header)
+            let ret = inflateGetHeader(&stream, &header)
             return header
         }
 
@@ -203,26 +196,27 @@ public struct ZLib {
 
         /// inflatePrime( strm: z_streamp, bits: Int32, value: Int32 )
         func prime(bits:CInt, value:PossibleValues){
-            inflatePrime(&stream, bits, value.rawValue)
+            let ret = inflatePrime(&stream, bits, value.rawValue)
         }
 
         /// inflateReset( strm: z_streamp )
         func reset(){
-            inflateReset(&stream)
+            let ret = inflateReset(&stream)
         }
 
         /// inflateReset2( strm: z_streamp, windowBits: Int32 )
         func reset(windowBits:CInt){
-            inflateReset2(&stream, windowBits)
+            let ret = inflateReset2(&stream, windowBits)
         }
 
         /// inflateSetDictionary( strm: z_streamp, dictionary: UnsafePointer<Bytef>, dictLength: uInt )
-        func setDictionary(){
+        func setDictionary(dictionary: Array<UInt8> ){
+            let ret = inflateSetDictionary(&stream, dictionary, CUnsignedInt(dictionary.count))
         }
 
         /// inflateSync( strm: z_streamp )
         func sync(){
-            inflateSync(&stream)
+            let ret = inflateSync(&stream)
         }
 
 
@@ -262,16 +256,17 @@ public struct ZLib {
             return deflate(&stream, flush.rawValue)
         }
         
-        /// deflateBOund( strm: z_streamp, sourceLen: uLong )
-        func Bound(){
-        
+        /// deflateBound( strm: z_streamp, sourceLen: uLong )
+        func Bound() -> CUnsignedLong{
+//            return deflateBound(&stream, <#T##sourceLen: uLong##uLong#>)
+            return 0
         }
 
         /// deflateCopy( dest: z_stramp, source: z_streamp )
         func duplicate() -> Deflate {
             let dest:Deflate = Deflate()
             deflateEnd(&dest.stream)
-            deflateCopy(&dest.stream, &self.stream)
+            deflateCopy(&dest.stream, &stream)
             return dest
         }
 
@@ -291,13 +286,13 @@ public struct ZLib {
         }
 
         /// deflateSetDictionary( strm: z_streamp, dictionary: UnsafePointer<Bytef>, dictLength: uInt )
-        func setDictionary(){
-        
+        func setDictionary(dictionary: Array<UInt8>) {
+            deflateSetDictionary(&stream, dictionary, CUnsignedInt(dictionary.count))
         }
 
         /// deflateSetHeader( strm: z_streamp, head: gz_headerp )
-        func setHeader(){
-        
+        func setHeader(inout header: gz_header){
+            deflateSetHeader(&stream, &header)
         }
 
         /// deflateTune( strm: z_stramp, good_length: Int32, max_lazy: Int32, nice_length: Int32, max_chain: Int32 )
