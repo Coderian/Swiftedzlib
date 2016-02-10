@@ -25,6 +25,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		725278F31C6B62A600AC250C /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		725278F41C6B62A600AC250C /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		72CC77B61C6ACDD00020B40B /* Swiftedzlib.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Swiftedzlib.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		72CC77BB1C6ACDD00020B40B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		72CC77C01C6ACDD00020B40B /* SwiftedzlibTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftedzlibTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -58,6 +60,8 @@
 		72CC77AC1C6ACDD00020B40B = {
 			isa = PBXGroup;
 			children = (
+				725278F31C6B62A600AC250C /* LICENSE */,
+				725278F41C6B62A600AC250C /* README.md */,
 				72CC77D51C6ACEB70020B40B /* Frameworks */,
 				72CC77B81C6ACDD00020B40B /* Swiftedzlib */,
 				72CC77C41C6ACDD00020B40B /* SwiftedzlibTests */,
@@ -403,6 +407,7 @@
 				72CC77CC1C6ACDD10020B40B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		72CC77CD1C6ACDD10020B40B /* Build configuration list for PBXNativeTarget "SwiftedzlibTests" */ = {
 			isa = XCConfigurationList;
@@ -411,6 +416,7 @@
 				72CC77CF1C6ACDD10020B40B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
