@@ -13,14 +13,13 @@ import Foundation
 // ref zlib.h
 public struct ZLib {
     public enum ZError: ErrorType {
-        case StreamEnd
-        case NeedDictionary
-        case ErrNo
-        case StreamError
-        case DataError
-        case MemoryError
-        case BufferError
-        case VersionError
+        case ErrNo(message: String)         // Z_ERRNO
+        case StreamError(message: String)   // Z_STREAM_ERROR
+        case DataError(message: String)     // Z_DATA_ERROR
+        case MemoryError(message: String)   // Z_MEM_ERROR
+        case BufferError(message: String)   // Z_BUF_ERROR
+        case VersionError(message: String)  // Z_VERSION_ERROR
+        case UnknownError(returnCode: CInt)
     }
     
     public enum CompressionLevel: CInt {
@@ -59,6 +58,9 @@ public struct ZLib {
     public static var version:String? {
         return String.fromCString(zlibVersion())
     }
+    public static var compileFlags:UInt {
+        return zlibCompileFlags()
+    }
 
     /// adler32( adler: uLong, buf: UnsafePointer<Bytef>, len: uInt)
     public static func toAdler32(adler:UInt , buffer: Array<UInt8> ) -> CUnsignedLong {
@@ -89,13 +91,16 @@ public struct ZLib {
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = compress(&dest, &destlen, source, CUnsignedLong(source.count))
         switch(ret){
-        case Z_MEM_ERROR:
-            throw ZError.MemoryError
-        case Z_BUF_ERROR:
-            throw ZError.BufferError
-        default:
-            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
+        case Z_OK:
+            //            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
+            let retValue = Array(dest.prefix(Int(destlen)))
             return retValue
+        case Z_MEM_ERROR:
+            throw ZError.MemoryError(message: "not enough memory")
+        case Z_BUF_ERROR:
+            throw ZError.BufferError(message: "not enough room in the output buffer")
+        default:
+            throw ZError.UnknownError(returnCode: ret)
         }
     }
     
@@ -106,13 +111,18 @@ public struct ZLib {
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = compress2(&dest, &destlen, source, CUnsignedLong(source.count), level.rawValue)
         switch(ret){
-        case Z_MEM_ERROR:
-            throw ZError.MemoryError
-        case Z_BUF_ERROR:
-            throw ZError.BufferError
-        default:
-            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
+        case Z_OK:
+//            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
+            let retValue = Array(dest.prefix(Int(destlen)))
             return retValue
+        case Z_MEM_ERROR:
+            throw ZError.MemoryError(message: "not enough memory")
+        case Z_BUF_ERROR:
+            throw ZError.BufferError(message: "not enough room in the output buffer")
+        case Z_STREAM_END:
+            throw ZError.StreamError(message: "the level parameter is invalid")
+        default:
+            throw ZError.UnknownError(returnCode: ret)
         }
     }
     
@@ -126,43 +136,78 @@ public struct ZLib {
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
         let ret = uncompress(&dest, &destlen, source, CUnsignedLong(source.count))
         switch(ret){
-        case Z_MEM_ERROR:
-            throw ZError.MemoryError
-        case Z_BUF_ERROR:
-            throw ZError.BufferError
-        default:
+        case Z_OK:
             return dest
+        case Z_MEM_ERROR:
+            throw ZError.MemoryError(message: "not enough memory")
+        case Z_BUF_ERROR:
+            throw ZError.BufferError(message: "not enough room in the output buffer")
+        case Z_DATA_ERROR:
+            throw ZError.DataError(message: "the input data was corrupted or incomplete")
+        default:
+            throw ZError.UnknownError(returnCode: ret)
         }
     }
     
     ///
     public class Inflate {
-        var stream: z_stream
-        var inBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ),repeatedValue:0)
-        var outBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ), repeatedValue: 0)
+        private var _stream: z_stream
+        private var _inBuffer:Array<CUnsignedChar>
+        private var _outBuffer:Array<CUnsignedChar>
         
         /// initilize
         ///  inflateInit_( strm: z_streamp, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(){
-            stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
-            let ret = inflateInit_(&stream, ZLIB_VERSION, CInt(sizeof(z_stream)))
+        init(buffersize: Int = 1024) throws {
+            _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            
+            _stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
+            let ret = inflateInit_(&_stream, ZLIB_VERSION, CInt(sizeof(z_stream)))
+            switch ret {
+            case Z_OK:
+                break
+            case Z_MEM_ERROR:
+                throw ZError.MemoryError(message: String.fromCString(_stream.msg)!)
+            case Z_VERSION_ERROR:
+                throw ZError.VersionError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
+            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
+            _stream.avail_out = CUnsignedInt(_outBuffer.count)
         }
         /// initilize
         ///
         /// zlib.h
         ///
         ///     inflateInit2_( strm: z_streamp, windowBits: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(windowBits:Int32){
-            stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
-            let ret = inflateInit2_(&stream, windowBits, ZLIB_VERSION, CInt(sizeof(z_stream)))
-            if ret != Z_OK {
-                // TODO:
+        init(windowBits:Int32, buffersize: Int = 1024 ) throws {
+            _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            
+            _stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
+            let ret = inflateInit2_(&_stream, windowBits, ZLIB_VERSION, CInt(sizeof(z_stream)))
+            switch ret {
+            case Z_OK:
+                break
+            case Z_MEM_ERROR:
+                throw ZError.MemoryError(message: String.fromCString(_stream.msg)!)
+            case Z_VERSION_ERROR:
+                throw ZError.VersionError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
             }
+            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
+            _stream.avail_out = CUnsignedInt(_outBuffer.count)
         }
         ///
         /// inflateEnd( strm: z_streamp )
         deinit{
-            let ret = inflateEnd(&stream)
+            inflateEnd(&_stream)
         }
         
         func doInflate(sourceFileName:String, destFileName:String){
@@ -170,53 +215,142 @@ public struct ZLib {
         }
 
         /// inflate( strm: z_streamp, flush: Int32 )
-        private func doInflate(flush:FlushVariation = .NoFlush){
-            let ret = inflate(&stream, flush.rawValue)
+        private func _inflate(flush:FlushVariation = .NoFlush) throws {
+            let ret = inflate(&_stream, flush.rawValue)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_STREAM_END:
+                break
+            case Z_NEED_DICT:
+                break
+            case Z_MEM_ERROR:
+                throw ZError.MemoryError(message: String.fromCString(_stream.msg)!)
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_DATA_ERROR:
+                throw ZError.DataError(message: String.fromCString(_stream.msg)!)
+            case Z_VERSION_ERROR:
+                throw ZError.VersionError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// inflateCopy( dest: z_streamp, source: z_streamp )
-        func duplicate() -> Inflate {
-            let dest:Inflate = Inflate()
-            let retEnd = inflateEnd(&dest.stream)
-            let retCopy = inflateCopy(&dest.stream, &stream)
+        func duplicate() throws -> Inflate {
+            let dest:Inflate = try Inflate()
+            inflateEnd(&dest._stream)
+            let ret = inflateCopy(&dest._stream, &_stream)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_MEM_ERROR:
+                throw ZError.MemoryError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
+            
             return dest
         }
 
         /// inflateGetHeader( strm: z_streamp, head: gz_headerp )
-        func getHeader() -> gz_header {
+        func getHeader() throws -> gz_header {
             var header = gz_header()
-            let ret = inflateGetHeader(&stream, &header)
+            let ret = inflateGetHeader(&_stream, &header)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
             return header
         }
 
         /// inflateMark( strm: z_streamp )
         func mark() -> Int{
-            return inflateMark(&stream)
+            return inflateMark(&_stream)
         }
 
         /// inflatePrime( strm: z_streamp, bits: Int32, value: Int32 )
-        func prime(bits:Int32, value:PossibleValues){
-            let ret = inflatePrime(&stream, bits, value.rawValue)
+        func prime(bits:Int32, value:PossibleValues) throws {
+            let ret = inflatePrime(&_stream, bits, value.rawValue)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// inflateReset( strm: z_streamp )
-        func reset(){
-            let ret = inflateReset(&stream)
+        func reset() throws {
+            let ret = inflateReset(&_stream)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// inflateReset2( strm: z_streamp, windowBits: Int32 )
-        func reset(windowBits:Int32){
-            let ret = inflateReset2(&stream, windowBits)
+        func reset(windowBits:Int32) throws {
+            let ret = inflateReset2(&_stream, windowBits)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// inflateSetDictionary( strm: z_streamp, dictionary: UnsafePointer<Bytef>, dictLength: uInt )
-        func setDictionary(dictionary: Array<UInt8> ){
-            let ret = inflateSetDictionary(&stream, dictionary, CUnsignedInt(dictionary.count))
+        func setDictionary(dictionary: Array<UInt8> ) throws {
+            let ret = inflateSetDictionary(&_stream, dictionary, CUnsignedInt(dictionary.count))
+            switch ret {
+            case Z_OK:
+                break
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            case Z_DATA_ERROR:
+                throw ZError.DataError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// inflateSync( strm: z_streamp )
-        func sync(){
-            let ret = inflateSync(&stream)
+        func sync() throws {
+            let ret = inflateSync(&_stream)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            case Z_DATA_ERROR:
+                throw ZError.DataError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
 
@@ -231,29 +365,68 @@ public struct ZLib {
     }
     
     public class Deflate {
-        var stream : z_stream
-        var inBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ),repeatedValue:0)
-        var outBuffer = Array<CUnsignedChar>(count:Int(BUFSIZ), repeatedValue: 0)
+        var _stream : z_stream
+        var _inBuffer:Array<CUnsignedChar>
+        var _outBuffer:Array<CUnsignedChar>
+        public var inProgress:Bool = true
         
         /// deflateInit_( strm: z_streamp, level: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(level:CompressionLevel = .Default){
-            stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
-            deflateInit_(&stream, level.rawValue, ZLIB_VERSION, CInt(sizeof(z_stream)))
+        init(level:CompressionLevel = .Default ,buffersize:Int = 1024 ) throws {
+            _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            
+            _stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
+            let ret = deflateInit_(&_stream, level.rawValue, ZLIB_VERSION, CInt(sizeof(z_stream)))
+            switch ret {
+            case Z_OK:
+                break
+            case Z_MEM_ERROR:
+                throw ZError.MemoryError(message: String.fromCString(_stream.msg)!)
+            case Z_VERSION_ERROR:
+                throw ZError.VersionError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
+            
+            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
+            _stream.avail_out = CUnsignedInt(_outBuffer.count)
+            
         }
 
         /// defalteInit2_( strm: z_stramp, level: Int32, method: Int32, windowBits: Int32, memLevel: Int32, strategy: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(level:CInt, method:CInt, windowBits:CInt, memLevel:CInt, strategy:CInt){
-            stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
-            deflateInit2_(&stream, level, method, windowBits, memLevel, strategy, ZLIB_VERSION, CInt(sizeof(z_stream)))
+        init(level:CompressionLevel, method:CInt, windowBits:CInt, memLevel:CInt, strategy:CompressionStrategy, buffersize:Int = 1024 ) throws {
+            _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
+            
+            _stream = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
+            let ret = deflateInit2_(&_stream, level.rawValue, method, windowBits, memLevel, strategy.rawValue, ZLIB_VERSION, CInt(sizeof(z_stream)))
+            switch ret {
+            case Z_OK:
+                break
+            case Z_MEM_ERROR:
+                throw ZError.MemoryError(message: String.fromCString(_stream.msg)!)
+            case Z_VERSION_ERROR:
+                throw ZError.VersionError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
+            
+            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
+            _stream.avail_out = CUnsignedInt(_outBuffer.count)
+            
         }
         /// deflateEnd( strm: z_streamp )
         deinit{
-            deflateEnd(&stream)
+            deflateEnd(&_stream)
         }
 
         /// deflate( strm: z_streamp, flush: Int32 )
         private func doDeflate( flush: FlushVariation = .NoFlush) -> Int32 {
-            return deflate(&stream, flush.rawValue)
+            return deflate(&_stream, flush.rawValue)
         }
         
         /// deflateBound( strm: z_streamp, sourceLen: uLong )
@@ -263,41 +436,97 @@ public struct ZLib {
         }
 
         /// deflateCopy( dest: z_stramp, source: z_streamp )
-        func duplicate() -> Deflate {
-            let dest:Deflate = Deflate()
-            deflateEnd(&dest.stream)
-            deflateCopy(&dest.stream, &stream)
+        func duplicate() throws -> Deflate {
+            let dest:Deflate = try Deflate()
+            deflateEnd(&dest._stream)
+            deflateCopy(&dest._stream, &_stream)
             return dest
         }
 
         /// defalteParams( strm: z_steramp, level: Int32, strategy: Int32 )
-        func params(level:CompressionLevel, strategy: CompressionStrategy){
-            deflateParams(&stream, level.rawValue, strategy.rawValue)
+        func params(level:CompressionLevel, strategy: CompressionStrategy) throws{
+            let ret = deflateParams(&_stream, level.rawValue, strategy.rawValue)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// deflatePrime( strm: z_streamp, bits: Int32, value: Int32 )
-        func prime(bits:Int32, value:PossibleValues){
-            deflatePrime(&stream, bits, value.rawValue)
+        func prime(bits:Int32, value:PossibleValues) throws {
+            let ret = deflatePrime(&_stream, bits, value.rawValue)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// deflateReset( strm: z_streamp )
-        func reset(){
-            deflateReset(&stream)
+        func reset() throws {
+            let ret = deflateReset(&_stream)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// deflateSetDictionary( strm: z_streamp, dictionary: UnsafePointer<Bytef>, dictLength: uInt )
-        func setDictionary(dictionary: Array<UInt8>) {
-            deflateSetDictionary(&stream, dictionary, CUnsignedInt(dictionary.count))
+        func setDictionary(dictionary: Array<UInt8>) throws {
+            let ret = deflateSetDictionary(&_stream, dictionary, CUnsignedInt(dictionary.count))
+            switch ret {
+            case Z_OK:
+                break
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// deflateSetHeader( strm: z_streamp, head: gz_headerp )
-        func setHeader(inout header: gz_header){
-            deflateSetHeader(&stream, &header)
+        func setHeader(inout header: gz_header) throws {
+            let ret = deflateSetHeader(&_stream, &header)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
 
         /// deflateTune( strm: z_stramp, good_length: Int32, max_lazy: Int32, nice_length: Int32, max_chain: Int32 )
-        func tune(){
-        
+        func tune( good_length:Int32, max_lazy:Int32, nice_length:Int32, max_chain:Int32) throws {
+            let ret = deflateTune(&_stream, good_length, max_lazy, nice_length, max_chain)
+            switch ret {
+            case Z_OK:
+                break
+            case Z_BUF_ERROR:
+                throw ZError.BufferError(message: String.fromCString(_stream.msg)!)
+            case Z_STREAM_ERROR:
+                throw ZError.StreamError(message: String.fromCString(_stream.msg)!)
+            default:
+                throw ZError.UnknownError(returnCode: ret)
+            }
         }
     }
     

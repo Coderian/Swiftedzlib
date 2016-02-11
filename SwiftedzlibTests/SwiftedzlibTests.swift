@@ -103,6 +103,17 @@ class SwiftedzlibTests: XCTestCase {
         XCTAssertNil(uncBufferErrored)
     }
     
+    func testDeflate() {
+        let deflate = try? ZLib.Deflate()
+        XCTAssertNotNil(deflate)
+    }
+    
+    func testInflate() {
+        let inflate = try? ZLib.Inflate()
+        XCTAssertNotNil(inflate)
+        
+    }
+    
     func testPerformanceExample() {
         // This is an example of a performance test case.
         self.measureBlock {
