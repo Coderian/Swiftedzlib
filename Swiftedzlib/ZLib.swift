@@ -236,9 +236,9 @@ public struct ZLib {
                         _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
                         _stream.avail_out = CUnsignedInt(_outBuffer.count)
                     }
-                }while (_stream.avail_in != 0)
+                } while (_stream.avail_in != 0)
             }
-            // TODO: サイズが合わない
+
             let count:Int = _outBuffer.count - Int(_stream.avail_out)
             if count != 0 {
                 if writer(buffer: _outBuffer) == false {
@@ -247,11 +247,6 @@ public struct ZLib {
             }
             
         }
-        
-        func Finished(writer: (buffer:Array<UInt8>) -> Bool) throws {
-            // TODO:
-        }
-        
         
         // ref http://oku.edu.mie-u.ac.jp/~okumura/compression/comptest.c
         func doInflate(src: Array<UInt8> ) throws -> Array<UInt8> {
@@ -286,7 +281,7 @@ public struct ZLib {
             // TODO: サイズが合わない
             let count:Int = _outBuffer.count - Int(_stream.avail_out)
             if count != 0 {
-                value.appendContentsOf(_outBuffer[0...count])
+                value.appendContentsOf(_outBuffer[0...count-1])
             }
             return value
             
@@ -498,36 +493,34 @@ public struct ZLib {
         deinit{
             deflateEnd(&_stream)
         }
-        
-        public func doDeflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
-            // TODO:
-            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
-            _stream.avail_out = CUnsignedInt(_outBuffer.count)
-            _stream.avail_in = 0
 
+        // ref http://www.zlib.net/zlib_how.html
+        public func doDeflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
+            _stream.avail_in = 0
             var status = Z_OK
-            var flush:FlushVariation = .NoFlush
             var remaining = src.count
             for index in 0.stride(to: src.count, by: _inBuffer.count){
+                // TODO: inBuffer[] < src[] の場合が必要
+                _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
+                remaining -= _inBuffer.count
+                _stream.avail_in = CUnsignedInt(_inBuffer.count)
+                _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
                 repeat {
-                    if _stream.avail_in == 0 {
-                        // TODO: inBuffer[] < src[] の場合が必要
-                        _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
-                        remaining -= _inBuffer.count
-                        _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
-                        _stream.avail_in = CUnsignedInt(_inBuffer.count)
-                        if _stream.avail_in < CUnsignedInt(_inBuffer.count) {
-                            flush = .Finish
-                        }
-                    }
+                    _stream.avail_out = CUnsignedInt(_outBuffer.count)
+                    _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
                     
-                    status = try _deflate(flush)
-                    if _stream.avail_out == 0 {
-                        if writer(buffer: _outBuffer) == false {
-                            break;
+                    status = try _deflate()
+                    if status == Z_STREAM_END {
+                        break
+                    }
+                    let count:Int = _outBuffer.count - Int(_stream.avail_out)
+                    if count != 0 {
+                        let buf = Array(_outBuffer[0...count-1])
+                        if writer(buffer: buf) == false {
+                            return;
                         }
                     }
-                } while status == Z_STREAM_END
+                } while _stream.avail_out == 0
             }
 
         }
@@ -536,7 +529,7 @@ public struct ZLib {
             try _deflate(.Finish)
             let count:Int = _outBuffer.count - Int(_stream.avail_out)
             if count != 0 {
-                let buf = Array(_outBuffer[0...count])
+                let buf = Array(_outBuffer[0...count-1])
                 return writer(buffer: buf)
             }
             return true
@@ -609,7 +602,7 @@ public struct ZLib {
 */
             let count:Int = _outBuffer.count - Int(_stream.avail_out)
             if count != 0 {
-                value.appendContentsOf(_outBuffer[0...count])
+                value.appendContentsOf(_outBuffer[0...count-1])
             }
             return value
         }

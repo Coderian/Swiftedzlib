@@ -103,26 +103,25 @@ class SwiftedzlibTests: XCTestCase {
         XCTAssertNil(uncBufferErrored)
     }
     
-    // TODO:実装検討中
     func testDeflateInflate() {
-        // この実装だとバッファーをまとめて圧縮伸張するのでメモリーを多量に使う
-        // メモリー使用量を少なくするにはストレージにつどアクセスする方法にする必要がある。
+        // メモリー使用量を少なくするためストレージにつどアクセスする
         let deflate = try? ZLib.Deflate()
         XCTAssertNotNil(deflate)
         let data = Array<UInt8>(count:1024*3, repeatedValue: 1)
         var compressdata = Array<UInt8>()
         for index in 0.stride(to: data.count, by: data.count/3){
             let chunk = Array(data[index...index+1024-1])
-            try? deflate?.doDeflate(chunk, writer: {compressdata.appendContentsOf($0); return true})
+            try? deflate?.doDeflate(chunk, writer: { compressdata.appendContentsOf($0); return true })
         }
-        try? deflate?.Finished( { compressdata.appendContentsOf($0); return true})
+        try? deflate?.Finished( { compressdata.appendContentsOf($0); return true })
         XCTAssert(compressdata.count < data.count,"圧縮されていない")
         
         var uncompressdata = Array<UInt8>()
         let inflate = try? ZLib.Inflate()
         XCTAssertNotNil(inflate)
+        
         do {
-            try inflate?.doInflate(compressdata, writer: { uncompressdata.appendContentsOf($0); return true})
+            try inflate?.doInflate(compressdata, writer: { uncompressdata.appendContentsOf($0); return true })
         }
         catch ZLib.ZError.DataError(let msg) {
             print(msg)
@@ -130,8 +129,7 @@ class SwiftedzlibTests: XCTestCase {
         catch {
             print("catch")
         }
-//        let uncompressdata = try? inflate?.doInflate(compressdata!!)
-//        XCTAssertEqual(data,uncompressdata!!,"値が復元されない")
+        XCTAssertEqual(data,uncompressdata,"値が復元されない")
     }
     
     func testGzFile(){
