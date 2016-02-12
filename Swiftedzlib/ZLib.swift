@@ -206,6 +206,53 @@ public struct ZLib {
             inflateEnd(&_stream)
         }
         
+        func doInflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
+            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
+            _stream.avail_out = CUnsignedInt(_outBuffer.count)
+            _stream.avail_in = 0
+            var remining = src.count
+            for index in 0.stride(to: src.count, by: _inBuffer.count){
+                // TODO: inBuffer[] < src[] の場合が必要
+                if src.count < index + _inBuffer.count {
+                    _inBuffer[0...src.count-1] = src[index...index+src.count-1]
+                    _stream.avail_in = CUnsignedInt(src.count)
+                }
+                else {
+                    _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
+                    _stream.avail_in = CUnsignedInt(_inBuffer.count)
+                    remining -= _inBuffer.count
+                }
+                _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
+                repeat {
+                    let ret = try _inflate()
+                    if ret == Z_STREAM_END {
+                        break;
+                    }
+
+                    if _stream.avail_out == 0 {
+                        if writer(buffer: _outBuffer) == false {
+                            return
+                        }
+                        _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
+                        _stream.avail_out = CUnsignedInt(_outBuffer.count)
+                    }
+                }while (_stream.avail_in != 0)
+            }
+            // TODO: サイズが合わない
+            let count:Int = _outBuffer.count - Int(_stream.avail_out)
+            if count != 0 {
+                if writer(buffer: _outBuffer) == false {
+                    return
+                }
+            }
+            
+        }
+        
+        func Finished(writer: (buffer:Array<UInt8>) -> Bool) throws {
+            // TODO:
+        }
+        
+        
         // ref http://oku.edu.mie-u.ac.jp/~okumura/compression/comptest.c
         func doInflate(src: Array<UInt8> ) throws -> Array<UInt8> {
             var value = Array<UInt8>()
@@ -405,13 +452,9 @@ public struct ZLib {
         var _stream : z_stream
         var _inBuffer:Array<CUnsignedChar>
         var _outBuffer:Array<CUnsignedChar>
-//        private var _reader:hasBlockRead
-//        private var _writer:hasBlockWrite
-        
-        private var inProgress:Bool = true
         
         /// deflateInit_( strm: z_streamp, level: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(level:CompressionLevel = .Default ,buffersize:Int = 1024 ) throws {
+        public init(level:CompressionLevel = .Default ,buffersize:Int = 1024 ) throws {
             _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             
@@ -432,7 +475,7 @@ public struct ZLib {
         }
 
         /// defalteInit2_( strm: z_stramp, level: Int32, method: Int32, windowBits: Int32, memLevel: Int32, strategy: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(level:CompressionLevel, method:CInt, windowBits:CInt, memLevel:CInt, strategy:CompressionStrategy, buffersize:Int = 1024 ) throws {
+        public init(level:CompressionLevel, method:CInt, windowBits:CInt, memLevel:CInt, strategy:CompressionStrategy, buffersize:Int = 1024 ) throws {
             _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             
@@ -456,8 +499,51 @@ public struct ZLib {
             deflateEnd(&_stream)
         }
         
+        public func doDeflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
+            // TODO:
+            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
+            _stream.avail_out = CUnsignedInt(_outBuffer.count)
+            _stream.avail_in = 0
+
+            var status = Z_OK
+            var flush:FlushVariation = .NoFlush
+            var remaining = src.count
+            for index in 0.stride(to: src.count, by: _inBuffer.count){
+                repeat {
+                    if _stream.avail_in == 0 {
+                        // TODO: inBuffer[] < src[] の場合が必要
+                        _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
+                        remaining -= _inBuffer.count
+                        _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
+                        _stream.avail_in = CUnsignedInt(_inBuffer.count)
+                        if _stream.avail_in < CUnsignedInt(_inBuffer.count) {
+                            flush = .Finish
+                        }
+                    }
+                    
+                    status = try _deflate(flush)
+                    if _stream.avail_out == 0 {
+                        if writer(buffer: _outBuffer) == false {
+                            break;
+                        }
+                    }
+                } while status == Z_STREAM_END
+            }
+
+        }
+        
+        public func Finished(writer: (buffer:Array<UInt8>) -> Bool) throws -> Bool{
+            try _deflate(.Finish)
+            let count:Int = _outBuffer.count - Int(_stream.avail_out)
+            if count != 0 {
+                let buf = Array(_outBuffer[0...count])
+                return writer(buffer: buf)
+            }
+            return true
+        }
+        
         // ref http://oku.edu.mie-u.ac.jp/~okumura/compression/comptest.c
-        func doDnflate(src: Array<UInt8> ) throws -> Array<UInt8> {
+        public func doDeflate(src: Array<UInt8> ) throws -> Array<UInt8> {
             var value = Array<UInt8>()
             _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
             _stream.avail_out = CUnsignedInt(_outBuffer.count)
@@ -465,7 +551,7 @@ public struct ZLib {
             let sizeBuffer = _inBuffer.count
             var flush:FlushVariation = .NoFlush
             var status:CInt = Z_OK
-
+            
             for index in 0.stride(to: src.count, by: sizeBuffer) {
                 if _stream.avail_in == 0 {
                     // TODO: inBuffer[] < src[] の場合が必要
