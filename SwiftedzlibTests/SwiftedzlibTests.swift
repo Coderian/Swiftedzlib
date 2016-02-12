@@ -107,13 +107,13 @@ class SwiftedzlibTests: XCTestCase {
         // メモリー使用量を少なくするためストレージにつどアクセスする
         let deflate = try? ZLib.Deflate()
         XCTAssertNotNil(deflate)
-        let data = Array<UInt8>(count:1024*3, repeatedValue: 1)
+        let data = Array<UInt8>(count:1024*10, repeatedValue: 90)
         var compressdata = Array<UInt8>()
-        for index in 0.stride(to: data.count, by: data.count/3){
+        for index in 0.stride(to: data.count, by: data.count/10){
             let chunk = Array(data[index...index+1024-1])
-            try? deflate?.doDeflate(chunk, writer: { compressdata.appendContentsOf($0); return true })
+            try! deflate?.doDeflate(chunk, writer: { compressdata.appendContentsOf($0); return true })
         }
-        try? deflate?.Finished( { compressdata.appendContentsOf($0); return true })
+        try! deflate?.Finished( { compressdata.appendContentsOf($0); return true })
         XCTAssert(compressdata.count < data.count,"圧縮されていない")
         
         var uncompressdata = Array<UInt8>()
@@ -130,6 +130,7 @@ class SwiftedzlibTests: XCTestCase {
             print("catch")
         }
         XCTAssertEqual(data,uncompressdata,"値が復元されない")
+        print("original size=\(data.count) compress size=\(compressdata.count) = \((Double(compressdata.count)/Double(data.count)) * 100)%")
     }
     
     func testGzFile(){

@@ -206,22 +206,23 @@ public struct ZLib {
             inflateEnd(&_stream)
         }
         
+        // ref http://www.zlib.net/zlib_how.html
         func doInflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
             _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
             _stream.avail_out = CUnsignedInt(_outBuffer.count)
             _stream.avail_in = 0
-            var remining = src.count
+            var remaining = src.count
             for index in 0.stride(to: src.count, by: _inBuffer.count){
-                // TODO: inBuffer[] < src[] の場合が必要
-                if src.count < index + _inBuffer.count {
-                    _inBuffer[0...src.count-1] = src[index...index+src.count-1]
-                    _stream.avail_in = CUnsignedInt(src.count)
+                if remaining < index + _inBuffer.count {
+                    _inBuffer[0...remaining-1] = src[index...index+remaining-1]
+                    _stream.avail_in = CUnsignedInt(remaining)
                 }
                 else {
                     _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
                     _stream.avail_in = CUnsignedInt(_inBuffer.count)
-                    remining -= _inBuffer.count
                 }
+                remaining -= _inBuffer.count
+                
                 _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
                 repeat {
                     let ret = try _inflate()
@@ -245,46 +246,6 @@ public struct ZLib {
                     return
                 }
             }
-            
-        }
-        
-        // ref http://oku.edu.mie-u.ac.jp/~okumura/compression/comptest.c
-        func doInflate(src: Array<UInt8> ) throws -> Array<UInt8> {
-            var value = Array<UInt8>()
-            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
-            _stream.avail_out = CUnsignedInt(_outBuffer.count)
-            _stream.avail_in = 0
-            for index in 0.stride(to: src.count, by: _inBuffer.count){
-                // TODO: inBuffer[] < src[] の場合が必要
-                if src.count < index + _inBuffer.count {
-                    _inBuffer[0...src.count-1] = src[index...index+src.count-1]
-                    _stream.avail_in = CUnsignedInt(src.count)
-                }
-                else {
-                    _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
-                    _stream.avail_in = CUnsignedInt(_inBuffer.count)
-                }
-                _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
-                repeat {
-                    let ret = try _inflate()
-                    if ret == Z_STREAM_END {
-                        break;
-                    }
-
-                    if _stream.avail_out == 0 {
-                        value.appendContentsOf(_outBuffer)
-                        _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
-                        _stream.avail_out = CUnsignedInt(_outBuffer.count)
-                    }
-                }while (_stream.avail_in != 0)
-            }
-            // TODO: サイズが合わない
-            let count:Int = _outBuffer.count - Int(_stream.avail_out)
-            if count != 0 {
-                value.appendContentsOf(_outBuffer[0...count-1])
-            }
-            return value
-            
         }
         
         /// inflate( strm: z_streamp, flush: Int32 )
@@ -497,19 +458,26 @@ public struct ZLib {
         // ref http://www.zlib.net/zlib_how.html
         public func doDeflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
             _stream.avail_in = 0
-            var status = Z_OK
             var remaining = src.count
             for index in 0.stride(to: src.count, by: _inBuffer.count){
                 // TODO: inBuffer[] < src[] の場合が必要
-                _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
+                if remaining < index + _inBuffer.count {
+                    _inBuffer[0...remaining-1] = src[index...index+remaining-1]
+                    _stream.avail_in = CUnsignedInt(remaining)
+                }
+                else {
+                    _inBuffer[0..._inBuffer.count-1] = src[index...index+_inBuffer.count-1]
+                    _stream.avail_in = CUnsignedInt(_inBuffer.count)
+                }
                 remaining -= _inBuffer.count
+                
                 _stream.avail_in = CUnsignedInt(_inBuffer.count)
                 _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
                 repeat {
                     _stream.avail_out = CUnsignedInt(_outBuffer.count)
                     _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
                     
-                    status = try _deflate()
+                    let status = try _deflate()
                     if status == Z_STREAM_END {
                         break
                     }
@@ -522,7 +490,6 @@ public struct ZLib {
                     }
                 } while _stream.avail_out == 0
             }
-
         }
         
         public func Finished(writer: (buffer:Array<UInt8>) -> Bool) throws -> Bool{
@@ -533,78 +500,6 @@ public struct ZLib {
                 return writer(buffer: buf)
             }
             return true
-        }
-        
-        // ref http://oku.edu.mie-u.ac.jp/~okumura/compression/comptest.c
-        public func doDeflate(src: Array<UInt8> ) throws -> Array<UInt8> {
-            var value = Array<UInt8>()
-            _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
-            _stream.avail_out = CUnsignedInt(_outBuffer.count)
-            _stream.avail_in = 0
-            let sizeBuffer = _inBuffer.count
-            var flush:FlushVariation = .NoFlush
-            var status:CInt = Z_OK
-            
-            for index in 0.stride(to: src.count, by: sizeBuffer) {
-                if _stream.avail_in == 0 {
-                    // TODO: inBuffer[] < src[] の場合が必要
-                    _inBuffer[0...sizeBuffer-1] = src[index...index+sizeBuffer-1]
-                    _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
-                    _stream.avail_in = CUnsignedInt(sizeBuffer)
-                    if _stream.avail_in < CUnsignedInt(sizeBuffer) {
-                        flush = .Finish
-                    }
-                }
-                status = try _deflate(flush)
-                if status == Z_STREAM_END {
-                    break
-                }
-                    
-                if _stream.avail_out == 0 {
-                    value.appendContentsOf(_outBuffer)
-                    _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
-                    _stream.avail_out = CUnsignedInt(_outBuffer.count)
-                }
-            }
-            if _stream.avail_in == 0 {
-                // TODO: inBuffer[] < src[] の場合が必要
-                _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
-                _stream.avail_in = 0
-                if _stream.avail_in < CUnsignedInt(sizeBuffer) {
-                    flush = .Finish
-                    status = try _deflate(flush)
-                }
-            }
-
-            
-/*
-            for index in 0.stride(to: src.count, by: sizeBuffer){
-                // TODO: inBuffer[] < src[] の場合が必要
-                if _stream.avail_in == 0 {
-                    _inBuffer[0...sizeBuffer-1] = src[index...index+sizeBuffer-1]
-                    _stream.next_in = UnsafeMutablePointer<CUnsignedChar>(_inBuffer)
-                    _stream.avail_in = CUnsignedInt(sizeBuffer)
-                    if _stream.avail_in < CUnsignedInt(sizeBuffer) {
-                        flush = .Finish
-                    }
-                }
-                let ret = try _deflate(flush)
-                if ret == Z_STREAM_END {
-                    break;
-                }
-
-                if _stream.avail_out == 0 {
-                    value.appendContentsOf(_outBuffer)
-                    _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
-                    _stream.avail_out = CUnsignedInt(_outBuffer.count)
-                }
-            }
-*/
-            let count:Int = _outBuffer.count - Int(_stream.avail_out)
-            if count != 0 {
-                value.appendContentsOf(_outBuffer[0...count-1])
-            }
-            return value
         }
         
         /// deflate( strm: z_streamp, flush: Int32 )
