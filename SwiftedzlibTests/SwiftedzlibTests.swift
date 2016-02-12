@@ -103,15 +103,21 @@ class SwiftedzlibTests: XCTestCase {
         XCTAssertNil(uncBufferErrored)
     }
     
-    func testDeflate() {
+    // TODO:実装途中
+    func Not_testDeflateInflate() {
         let deflate = try? ZLib.Deflate()
         XCTAssertNotNil(deflate)
-    }
-    
-    func testInflate() {
+        let data = Array<UInt8>(count:1024*3, repeatedValue: 1)
+        let compressdata = try? deflate?.doDnflate(data)
+        XCTAssert(compressdata?!.count < data.count,"圧縮されていない")
+        
         let inflate = try? ZLib.Inflate()
         XCTAssertNotNil(inflate)
-        
+        let uncompressdata = try? inflate?.doInflate(compressdata!!)
+        XCTAssertEqual(data,uncompressdata!!,"値が復元されない")
+    }
+    
+    func testGzFile(){
     }
     
     func testPerformanceExample() {

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7224DA571C6D6FDE002D8362 /* ByteStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7224DA561C6D6FDE002D8362 /* ByteStream.swift */; };
 		72CC77C11C6ACDD00020B40B /* Swiftedzlib.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 72CC77B61C6ACDD00020B40B /* Swiftedzlib.framework */; };
 		72CC77C61C6ACDD00020B40B /* SwiftedzlibTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CC77C51C6ACDD00020B40B /* SwiftedzlibTests.swift */; };
 		72CC77D11C6ACDEA0020B40B /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 72CC77D01C6ACDEA0020B40B /* libz.tbd */; };
@@ -25,6 +26,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		7224DA561C6D6FDE002D8362 /* ByteStream.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ByteStream.swift; sourceTree = "<group>"; };
 		725278F31C6B62A600AC250C /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		725278F41C6B62A600AC250C /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		72CC77B61C6ACDD00020B40B /* Swiftedzlib.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Swiftedzlib.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -83,6 +85,7 @@
 			children = (
 				72CC77BB1C6ACDD00020B40B /* Info.plist */,
 				72CC77D21C6ACE1B0020B40B /* ZLib.swift */,
+				7224DA561C6D6FDE002D8362 /* ByteStream.swift */,
 			);
 			path = Swiftedzlib;
 			sourceTree = "<group>";
@@ -213,6 +216,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7224DA571C6D6FDE002D8362 /* ByteStream.swift in Sources */,
 				72CC77D31C6ACE1B0020B40B /* ZLib.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
