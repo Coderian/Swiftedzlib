@@ -26,6 +26,10 @@ class SwiftedzlibTests: XCTestCase {
         // Use XCTAssert and related functions to verify your tests produce the correct results.
         let v = ZLib.version
         XCTAssertNotNil(v)
+        let flags = ZLib.compileFlags
+        XCTAssertNotEqual(flags, 0)
+        
+        example()
     }
     
     func testCompressionDecompression() {

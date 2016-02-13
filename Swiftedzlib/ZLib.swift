@@ -460,7 +460,6 @@ public struct ZLib {
             _stream.avail_in = 0
             var remaining = src.count
             for index in 0.stride(to: src.count, by: _inBuffer.count){
-                // TODO: inBuffer[] < src[] の場合が必要
                 if remaining < index + _inBuffer.count {
                     _inBuffer[0...remaining-1] = src[index...index+remaining-1]
                     _stream.avail_in = CUnsignedInt(remaining)

@@ -21,62 +21,93 @@ import Foundation
 // XCTAssertEqual(source,data)
 
 protocol ByteStream {
-    func inlet(data:Array<UInt8>) -> Self
-    func outlet(inout data:Array<UInt8>) -> Self
+    mutating func inlet(indata:Array<UInt8>) -> Self
+    func outlet(inout outdata:Array<UInt8>) -> Self
 }
 
-infix operator <<< { associativity left precedence 140 }
-func <<< (left:ByteStream, right:ByteStream) -> ByteStream {
+infix operator <<< { associativity right precedence 140 }
+func <<< (var left:ByteStream, right:ByteStream) -> ByteStream {
     var data:Array<UInt8> = Array<UInt8>()
     right.outlet(&data)
     return left.inlet(data)
 }
 infix operator >>> { associativity left precedence 140 }
-func >>> (left:ByteStream, right:ByteStream) -> ByteStream {
+func >>> (left:ByteStream, var right:ByteStream) -> ByteStream {
     var data:Array<UInt8> = Array<UInt8>()
     left.outlet(&data)
     return right.inlet(data)
 }
 
 struct StringStream : ByteStream {
-    func inlet(data:Array<UInt8>) -> StringStream {
+    var text:String
+    init(){
+        text = String()
+    }
+    init(text:String){
+        self.text = text
+    }
+    mutating func inlet(indata:Array<UInt8>) -> StringStream {
+        debugPrint("StringStream inlet \(indata)")
+        self.text = String(indata)
         return self
     }
-    func outlet(inout data:Array<UInt8>) -> StringStream {
+    func outlet(inout outdata:Array<UInt8>) -> StringStream {
+        outdata = Array(self.text.utf8)
+        debugPrint("StringStream outlet \(outdata)")
         return self
     }
 }
 
 struct FileStream : ByteStream {
-    func inlet(data:Array<UInt8>) -> FileStream {
+    func inlet(indata:Array<UInt8>) -> FileStream {
+        debugPrint("FileStream inlet \(indata)")
         return self
     }
-    func outlet(inout data:Array<UInt8>) -> FileStream {
+    func outlet(inout outdata:Array<UInt8>) -> FileStream {
+        debugPrint("FileStream outlet \(outdata)")
         return self
     }
 }
 
 struct Compresser: ByteStream {
-    func inlet(data:Array<UInt8>) -> Compresser {
+    var compressedData:Array<UInt8>
+    init(){
+        compressedData = Array<UInt8>()
+    }
+    mutating func inlet(indata:Array<UInt8>) -> Compresser {
+        debugPrint("Compresser inlet \(indata)")
+        // TODO: Compress
+        self.compressedData = indata
         return self
     }
-    func outlet(inout data:Array<UInt8>) -> Compresser {
+    func outlet(inout outdata:Array<UInt8>) -> Compresser {
+        outdata = self.compressedData
+        debugPrint("Compresser outlet \(outdata)")
         return self
     }
 }
 
 struct DeCompresser: ByteStream {
-    func inlet(data:Array<UInt8>) -> DeCompresser {
+    var decompressedData:Array<UInt8>
+    init(){
+        decompressedData = Array<UInt8>()
+    }
+    mutating func inlet(indata:Array<UInt8>) -> DeCompresser {
+        debugPrint("DeCompresser inlet \(indata)")
+        // TODO: Decompress
+        self.decompressedData = indata
         return self
     }
-    func outlet(inout data:Array<UInt8>) -> DeCompresser {
+    func outlet(inout outdata:Array<UInt8>) -> DeCompresser {
+        outdata = self.decompressedData
+        debugPrint("DeCompresser outlet \(outdata)")
         return self
     }
 }
 
 func example (){
     let file = FileStream()
-    let source = StringStream()
+    let source = StringStream(text: "source")
     let data = StringStream()
     let compresser = Compresser()
     let decompresser = DeCompresser()
