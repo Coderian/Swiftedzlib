@@ -154,10 +154,11 @@ public struct ZLib {
         private var _stream: z_stream
         private var _inBuffer:Array<CUnsignedChar>
         private var _outBuffer:Array<CUnsignedChar>
+        static let defaultSize = 1024
         
         /// initilize
         ///  inflateInit_( strm: z_streamp, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(buffersize: Int = 1024) throws {
+        public init(buffersize: Int = defaultSize) throws {
             _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             
@@ -181,7 +182,7 @@ public struct ZLib {
         /// zlib.h
         ///
         ///     inflateInit2_( strm: z_streamp, windowBits: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        init(windowBits:Int32, buffersize: Int = 1024 ) throws {
+        public init(windowBits:Int32, buffersize: Int = defaultSize ) throws {
             _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             
@@ -207,7 +208,7 @@ public struct ZLib {
         }
         
         // ref http://www.zlib.net/zlib_how.html
-        func doInflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
+        public func doInflate(src:Array<UInt8>, writer: (buffer:Array<UInt8>) -> Bool) throws {
             _stream.next_out = UnsafeMutablePointer<CUnsignedChar>(_outBuffer)
             _stream.avail_out = CUnsignedInt(_outBuffer.count)
             _stream.avail_in = 0
@@ -249,7 +250,7 @@ public struct ZLib {
         }
         
         /// inflate( strm: z_streamp, flush: Int32 )
-        private func _inflate(flush:FlushVariation = .NoFlush) throws -> CInt {
+        func _inflate(flush:FlushVariation = .NoFlush) throws -> CInt {
             let ret = inflate(&_stream, flush.rawValue)
             switch ret {
             case Z_OK:
@@ -316,7 +317,7 @@ public struct ZLib {
         }
 
         /// inflatePrime( strm: z_streamp, bits: Int32, value: Int32 )
-        func prime(bits:Int32, value:PossibleValues) throws {
+        public func prime(bits:Int32, value:PossibleValues) throws {
             let ret = inflatePrime(&_stream, bits, value.rawValue)
             switch ret {
             case Z_OK:
@@ -357,7 +358,7 @@ public struct ZLib {
         }
 
         /// inflateSetDictionary( strm: z_streamp, dictionary: UnsafePointer<Bytef>, dictLength: uInt )
-        func setDictionary(dictionary: Array<UInt8> ) throws {
+        public func setDictionary(dictionary: Array<UInt8> ) throws {
             let ret = inflateSetDictionary(&_stream, dictionary, CUnsignedInt(dictionary.count))
             switch ret {
             case Z_OK:
@@ -408,9 +409,10 @@ public struct ZLib {
         var _stream : z_stream
         var _inBuffer:Array<CUnsignedChar>
         var _outBuffer:Array<CUnsignedChar>
+        static let defaultSize = 1024
         
         /// deflateInit_( strm: z_streamp, level: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        public init(level:CompressionLevel = .Default ,buffersize:Int = 1024 ) throws {
+        public init(level:CompressionLevel = .Default ,buffersize:Int = defaultSize) throws {
             _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             
@@ -431,7 +433,7 @@ public struct ZLib {
         }
 
         /// defalteInit2_( strm: z_stramp, level: Int32, method: Int32, windowBits: Int32, memLevel: Int32, strategy: Int32, version: UnsafePointer<Int8>, stream_size: Int32 )
-        public init(level:CompressionLevel, method:CInt, windowBits:CInt, memLevel:CInt, strategy:CompressionStrategy, buffersize:Int = 1024 ) throws {
+        public init(level:CompressionLevel, method:CInt, windowBits:CInt, memLevel:CInt, strategy:CompressionStrategy, buffersize:Int = defaultSize ) throws {
             _inBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             _outBuffer = Array<CUnsignedChar>(count:Int(buffersize),repeatedValue:0)
             
@@ -502,7 +504,7 @@ public struct ZLib {
         }
         
         /// deflate( strm: z_streamp, flush: Int32 )
-        private func _deflate( flush: FlushVariation = .NoFlush) throws -> CInt {
+        func _deflate( flush: FlushVariation = .NoFlush) throws -> CInt {
             let ret = deflate(&_stream, flush.rawValue)
             switch ret {
             case Z_OK:
@@ -543,7 +545,7 @@ public struct ZLib {
         }
 
         /// defalteParams( strm: z_steramp, level: Int32, strategy: Int32 )
-        func params(level:CompressionLevel, strategy: CompressionStrategy) throws{
+        public func params(level:CompressionLevel, strategy: CompressionStrategy) throws{
             let ret = deflateParams(&_stream, level.rawValue, strategy.rawValue)
             switch ret {
             case Z_OK:
@@ -558,7 +560,7 @@ public struct ZLib {
         }
 
         /// deflatePrime( strm: z_streamp, bits: Int32, value: Int32 )
-        func prime(bits:Int32, value:PossibleValues) throws {
+        public func prime(bits:Int32, value:PossibleValues) throws {
             let ret = deflatePrime(&_stream, bits, value.rawValue)
             switch ret {
             case Z_OK:
@@ -586,7 +588,7 @@ public struct ZLib {
         }
 
         /// deflateSetDictionary( strm: z_streamp, dictionary: UnsafePointer<Bytef>, dictLength: uInt )
-        func setDictionary(dictionary: Array<UInt8>) throws {
+        public func setDictionary(dictionary: Array<UInt8>) throws {
             let ret = deflateSetDictionary(&_stream, dictionary, CUnsignedInt(dictionary.count))
             switch ret {
             case Z_OK:
