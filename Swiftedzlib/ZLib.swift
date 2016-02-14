@@ -75,17 +75,17 @@ public struct ZLib {
     /// compress(dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong )
     public mutating func toCompress(source: Array<UInt8>) throws -> Array<UInt8> {
         _sizeOfOriginalBuffer = source.count
-        return try self.dynamicType.toCompress(source)
+        return try self.dynamicType.toCompress(source).compressData
     }
     
     /// compress2( dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong, level: Int32 )
     public mutating func toCompress(source: Array<UInt8>, level: CompressionLevel) throws -> Array<UInt8> {
         _sizeOfOriginalBuffer = source.count
-        return try self.dynamicType.toCompress(source, level: level)
+        return try self.dynamicType.toCompress(source, level: level).compressData
     }
     
     /// compress(dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong )
-    public static func toCompress(source: Array<UInt8>) throws -> Array<UInt8> {
+    public static func toCompress(source: Array<UInt8>) throws -> (originalSize:Int,compressData:Array<UInt8>) {
         let sizeOfCompressBuffer = compressBound(CUnsignedLong(source.count))
         var dest = Array<Bytef>(count:Int(sizeOfCompressBuffer), repeatedValue: 0)
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
@@ -93,7 +93,7 @@ public struct ZLib {
         switch(ret){
         case Z_OK:
             //            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
-            let retValue = Array(dest.prefix(Int(destlen)))
+            let retValue = (originalSize:source.count, compressData:Array(dest[0...Int(destlen)-1]))
             return retValue
         case Z_MEM_ERROR:
             throw ZError.MemoryError(message: "not enough memory")
@@ -105,7 +105,7 @@ public struct ZLib {
     }
     
     /// compress2( dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong, level: Int32 )
-    public static func toCompress(source: Array<UInt8>, level: CompressionLevel) throws -> Array<UInt8> {
+    public static func toCompress(source: Array<UInt8>, level: CompressionLevel) throws -> (originalSize:Int,compressData:Array<UInt8>) {
         let sizeOfCompressBuffer = compressBound(CUnsignedLong(source.count))
         var dest = Array<Bytef>(count:Int(sizeOfCompressBuffer), repeatedValue: 0)
         var destlen:CUnsignedLong = CUnsignedLong(dest.count)
@@ -113,7 +113,7 @@ public struct ZLib {
         switch(ret){
         case Z_OK:
 //            let retValue = dest.prefix(Int(destlen)).map({UInt8($0)})
-            let retValue = Array(dest.prefix(Int(destlen)))
+            let retValue = (originalSize:source.count,Array(dest[0...Int(destlen)-1]))
             return retValue
         case Z_MEM_ERROR:
             throw ZError.MemoryError(message: "not enough memory")
@@ -129,6 +129,10 @@ public struct ZLib {
     /// uncompress(dest: UnsafeMutablePointer<Bytef>, destLen: UnsafeMutablePointer<uLongf>, source: UnsafePointer<Bytef>, sourceLen: uLong)
     public func toUncompress( source: Array<UInt8>) throws -> Array<UInt8> {
         return try self.dynamicType.toUncompress(source, sizeOfOriginalBuffer: _sizeOfOriginalBuffer)
+    }
+    
+    public static func toUncompress( source :(originalSize:Int,compressData:Array<UInt8>)) throws -> Array<UInt8> {
+        return try toUncompress(source.compressData, sizeOfOriginalBuffer: source.originalSize)
     }
     
     public static func toUncompress( source: Array<UInt8>, sizeOfOriginalBuffer:Int ) throws -> Array<UInt8> {

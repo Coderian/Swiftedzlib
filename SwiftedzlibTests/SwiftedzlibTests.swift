@@ -71,26 +71,26 @@ class SwiftedzlibTests: XCTestCase {
         // オリジナルのサイズを別途知り得る場合
         let cDefault = try? ZLib.toCompress(source)
         XCTAssertNotNil(cDefault)
-        let uncDefault = try? ZLib.toUncompress(cDefault!, sizeOfOriginalBuffer: source.count)
+        let uncDefault = try? ZLib.toUncompress(cDefault!.compressData, sizeOfOriginalBuffer: cDefault!.originalSize)
         XCTAssertEqual(source, uncDefault!, "値が復元されない")
-        print("original size=\(source.count) compress size=\(cDefault?.count) = \((Double(cDefault!.count)/Double(source.count)) * 100)%")
+        print("original size=\(source.count) compress size=\(cDefault?.compressData.count) = \((Double(cDefault!.compressData.count)/Double((cDefault?.originalSize)!)) * 100)%")
         
         let cBestSpeed = try? ZLib.toCompress(source, level: .BestSpeed)
         XCTAssertNotNil(cBestSpeed)
-        let uncBS = try? ZLib.toUncompress(cBestSpeed!, sizeOfOriginalBuffer: source.count)
+        let uncBS = try? ZLib.toUncompress(cBestSpeed!.compressData, sizeOfOriginalBuffer: cBestSpeed!.originalSize)
         XCTAssertEqual(source, uncBS!, "値が復元されない")
-        print("BestSpeed original size=\(source.count) compress size=\(cBestSpeed?.count) = \((Double(cBestSpeed!.count)/Double(source.count)) * 100)%")
+        print("BestSpeed original size=\(source.count) compress size=\(cBestSpeed?.compressData.count) = \((Double(cBestSpeed!.compressData.count)/Double(cBestSpeed!.originalSize)) * 100)%")
         
         let cBestCompression = try? ZLib.toCompress(source, level: .BestCompression)
         XCTAssertNotNil(cBestCompression)
-        print("BestCompression original size=\(source.count) compress size=\(cBestCompression?.count) = \((Double(cBestCompression!.count)/Double(source.count)) * 100)%")
-        let uncBC = try? ZLib.toUncompress(cBestCompression!, sizeOfOriginalBuffer: source.count)
+        print("BestCompression original size=\(source.count) compress size=\(cBestCompression?.compressData.count) = \((Double(cBestCompression!.compressData.count)/Double((cBestCompression?.originalSize)!)) * 100)%")
+        let uncBC = try? ZLib.toUncompress(cBestCompression!)
         XCTAssertEqual(source, uncBC!, "値が復元されない")
         
         // buffer error
         let uncBufferErrored:Array<UInt8>?
         do {
-            uncBufferErrored = try ZLib.toUncompress(cBestCompression!, sizeOfOriginalBuffer: source.count/2)
+            uncBufferErrored = try ZLib.toUncompress(cBestCompression!.compressData, sizeOfOriginalBuffer: cBestCompression!.originalSize/2)
         }
         catch ZLib.ZError.MemoryError {
             print("catch MemoryError")
